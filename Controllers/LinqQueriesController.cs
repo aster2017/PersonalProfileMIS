@@ -178,4 +178,150 @@ public class LinqQueriesController : ControllerBase
         return Ok(await _repo.GetFilteredSortedPageAsync(
             department, city, minSalary, sortBy, page, pageSize));
     }
+
+    // ─────────────────────────────────────────────────────
+    //  SESSION 6: Advanced LINQ Operators
+    //  "Deeper LINQ — Distinct, All, Aggregate, Select with
+    //   index, SelectMany, Chunk, computed properties"
+    // ─────────────────────────────────────────────────────
+
+    /// <summary>GET api/linqqueries/distinct-departments</summary>
+    [HttpGet("distinct-departments")]
+    public async Task<IActionResult> DistinctDepartments()
+    {
+        return Ok(await _repo.GetDistinctDepartmentsAsync());
+    }
+
+    /// <summary>GET api/linqqueries/distinct-cities</summary>
+    [HttpGet("distinct-cities")]
+    public async Task<IActionResult> DistinctCities()
+    {
+        return Ok(await _repo.GetDistinctCitiesAsync());
+    }
+
+    /// <summary>GET api/linqqueries/all-active/Engineering</summary>
+    [HttpGet("all-active/{department}")]
+    public async Task<IActionResult> AllActive(string department)
+    {
+        return Ok(new
+        {
+            Department = department,
+            AllAreActive = await _repo.AllActiveInDepartmentAsync(department)
+        });
+    }
+
+    /// <summary>GET api/linqqueries/concatenated-names/Engineering</summary>
+    [HttpGet("concatenated-names/{department}")]
+    public async Task<IActionResult> ConcatenatedNames(string department)
+    {
+        return Ok(new
+        {
+            Department = department,
+            Names = await _repo.GetConcatenatedNamesAsync(department)
+        });
+    }
+
+    /// <summary>GET api/linqqueries/salary-ranges</summary>
+    [HttpGet("salary-ranges")]
+    public async Task<IActionResult> SalaryRanges()
+    {
+        return Ok(await _repo.GetSalaryRangesAsync());
+    }
+
+    /// <summary>GET api/linqqueries/ranked-by-salary</summary>
+    [HttpGet("ranked-by-salary")]
+    public async Task<IActionResult> RankedBySalary()
+    {
+        return Ok(await _repo.GetPeopleWithRankAsync());
+    }
+
+    /// <summary>GET api/linqqueries/department-city-matrix</summary>
+    [HttpGet("department-city-matrix")]
+    public async Task<IActionResult> DepartmentCityMatrix()
+    {
+        return Ok(await _repo.GetDepartmentCityMatrixAsync());
+    }
+
+    /// <summary>GET api/linqqueries/salary-percentiles</summary>
+    [HttpGet("salary-percentiles")]
+    public async Task<IActionResult> SalaryPercentiles()
+    {
+        return Ok(await _repo.GetSalaryPercentilesAsync());
+    }
+
+    /// <summary>GET api/linqqueries/except-department/Engineering</summary>
+    [HttpGet("except-department/{department}")]
+    public async Task<IActionResult> ExceptDepartment(string department)
+    {
+        return Ok(await _repo.GetPeopleExceptDepartmentAsync(department));
+    }
+
+    /// <summary>GET api/linqqueries/years-of-service</summary>
+    [HttpGet("years-of-service")]
+    public async Task<IActionResult> YearsOfService()
+    {
+        return Ok(await _repo.GetYearsOfServiceAsync());
+    }
+
+    // ─────────────────────────────────────────────────────
+    //  SESSION 7: Real-World Query Patterns
+    //  "Patterns you'll actually use in production apps"
+    // ─────────────────────────────────────────────────────
+
+    /// <summary>GET api/linqqueries/duplicate-email-domains</summary>
+    [HttpGet("duplicate-email-domains")]
+    public async Task<IActionResult> DuplicateEmailDomains()
+    {
+        return Ok(await _repo.GetDuplicateEmailDomainsAsync());
+    }
+
+    /// <summary>GET api/linqqueries/compare-departments?dept1=Engineering&amp;dept2=Marketing</summary>
+    [HttpGet("compare-departments")]
+    public async Task<IActionResult> CompareDepartments(
+        [FromQuery] string dept1, [FromQuery] string dept2)
+    {
+        return Ok(await _repo.GetDepartmentComparisonAsync(dept1, dept2));
+    }
+
+    /// <summary>GET api/linqqueries/hired-by-year</summary>
+    [HttpGet("hired-by-year")]
+    public async Task<IActionResult> HiredByYear()
+    {
+        return Ok(await _repo.GetHiredByYearAsync());
+    }
+
+    /// <summary>GET api/linqqueries/salary-distribution</summary>
+    [HttpGet("salary-distribution")]
+    public async Task<IActionResult> SalaryDistribution()
+    {
+        return Ok(await _repo.GetSalaryDistributionAsync());
+    }
+
+    /// <summary>GET api/linqqueries/above-average-salary</summary>
+    [HttpGet("above-average-salary")]
+    public async Task<IActionResult> AboveAverageSalary()
+    {
+        return Ok(await _repo.GetAboveAverageSalaryAsync());
+    }
+
+    /// <summary>GET api/linqqueries/city-salary-ranking</summary>
+    [HttpGet("city-salary-ranking")]
+    public async Task<IActionResult> CitySalaryRanking()
+    {
+        return Ok(await _repo.GetCitySalaryRankingAsync());
+    }
+
+    /// <summary>GET api/linqqueries/active-vs-inactive</summary>
+    [HttpGet("active-vs-inactive")]
+    public async Task<IActionResult> ActiveVsInactive()
+    {
+        return Ok(await _repo.GetActiveVsInactiveStatsAsync());
+    }
+
+    /// <summary>GET api/linqqueries/recent-hires?years=5</summary>
+    [HttpGet("recent-hires")]
+    public async Task<IActionResult> RecentHires([FromQuery] int years = 5)
+    {
+        return Ok(await _repo.GetRecentHiresAsync(years));
+    }
 }

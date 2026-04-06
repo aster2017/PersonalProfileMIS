@@ -56,4 +56,32 @@ public interface IPersonRepository
     Task<IEnumerable<Person>> GetFilteredSortedPageAsync(
         string? department, string? city, decimal? minSalary,
         string sortBy, int page, int pageSize);                          // Full query composition
+
+    // ──────────────────────────────────────────────
+    // Session 6: Advanced LINQ Operators
+    // Distinct, Skip/Take patterns, All, Aggregate, Zip, Set operations
+    // ──────────────────────────────────────────────
+    Task<IEnumerable<string>> GetDistinctDepartmentsAsync();             // Distinct
+    Task<IEnumerable<string>> GetDistinctCitiesAsync();                  // Distinct
+    Task<bool> AllActiveInDepartmentAsync(string department);            // All
+    Task<string> GetConcatenatedNamesAsync(string department);           // Aggregate
+    Task<IEnumerable<object>> GetSalaryRangesAsync();                    // Let-style intermediate grouping
+    Task<IEnumerable<object>> GetPeopleWithRankAsync();                  // Select with index
+    Task<IEnumerable<object>> GetDepartmentCityMatrixAsync();            // SelectMany cross-join pattern
+    Task<IEnumerable<object>> GetSalaryPercentilesAsync();               // Chunk / quantile bucketing
+    Task<IEnumerable<Person>> GetPeopleExceptDepartmentAsync(string department); // Where != (Except pattern)
+    Task<IEnumerable<object>> GetYearsOfServiceAsync();                  // Computed property in Select
+
+    // ──────────────────────────────────────────────
+    // Session 7: Real-World Query Patterns
+    // Patterns students will use in actual projects
+    // ──────────────────────────────────────────────
+    Task<IEnumerable<object>> GetDuplicateEmailDomainsAsync();           // GroupBy + Where count > 1
+    Task<object> GetDepartmentComparisonAsync(string dept1, string dept2); // Side-by-side comparison
+    Task<IEnumerable<object>> GetHiredByYearAsync();                     // GroupBy year + trend
+    Task<IEnumerable<object>> GetSalaryDistributionAsync();              // Bucket ranges
+    Task<IEnumerable<object>> GetAboveAverageSalaryAsync();              // Subquery pattern
+    Task<IEnumerable<object>> GetCitySalaryRankingAsync();               // Nested GroupBy + OrderBy
+    Task<object> GetActiveVsInactiveStatsAsync();                        // Conditional aggregation
+    Task<IEnumerable<object>> GetRecentHiresAsync(int years);            // Date filtering
 }
