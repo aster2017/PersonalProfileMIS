@@ -1000,4 +1000,332 @@ public class PersonRepository : IPersonRepository
             })
             .ToList<object>();
     }
+
+    // ══════════════════════════════════════════════
+    //  SESSION 8 — Joins
+    //  Combining data from two tables/collections
+    // ══════════════════════════════════════════════
+
+    /// <summary>
+    /// INNER JOIN — Only returns rows where BOTH sides have a match
+    ///
+    /// EXPLANATION: Join() takes 4 parameters:
+    ///   1. The second collection to join with
+    ///   2. Key from the FIRST collection (People.Department)
+    ///   3. Key from the SECOND collection (Departments.Name)
+    ///   4. What to return when keys match
+    ///
+    /// Think of it as: "For each person, find their department info"
+    /// People WITHOUT a matching department are EXCLUDED.
+    /// Departments WITHOUT any people are also EXCLUDED.
+    ///
+    /// MSSQL Equivalent:
+    ///   SELECT p.FirstName, p.LastName, p.Salary,
+    ///          d.Name AS Department, d.Floor, d.ManagerName, d.Budget
+    ///   FROM People p
+    ///   INNER JOIN Departments d ON p.Department = d.Name
+    ///   ORDER BY d.Name, p.LastName;
+    /// </summary>
+    public async Task<IEnumerable<object>> InnerJoinPeopleDepartmentsAsync()
+    {
+        var people = await _context.People.ToListAsync();
+        var departments = await _context.Departments.ToListAsync();
+
+        return people
+            .Join(
+                departments,                          // Second collection
+                person => person.Department,          // Key from People
+                dept => dept.Name,                    // Key from Departments
+                (person, dept) => new                 // Result when keys match
+                {
+                    person.FirstName,
+                    person.LastName,
+                    person.Salary,
+                    Department = dept.Name,
+                    dept.Floor,
+                    dept.ManagerName,
+                    dept.Budget
+                })
+            .OrderBy(x => x.Department)
+            .ThenBy(x => x.LastName)
+            .ToList<object>();
+    }
+
+    /// <summary>
+    /// LEFT JOIN — All departments, even those with NO people
+    ///
+    /// EXPLANATION: LINQ doesn't have a direct LeftJoin() method.
+    /// Instead, we use GroupJoin() + SelectMany() + DefaultIfEmpty().
+    ///
+    /// The pattern is:
+    ///   1. GroupJoin — pairs each department with its list of people
+    ///   2. SelectMany — flattens the grouped results
+    ///   3. DefaultIfEmpty — if a department has no people, use null
+    ///
+    /// Notice "Sales" department appears with null person — that's the LEFT JOIN!
+    ///
+    /// MSSQL Equivalent:
+    ///   SELECT d.Name AS Department, d.Floor, d.ManagerName,
+    ///          p.FirstName, p.LastName, p.Salary
+    ///   FROM Departments d
+    ///   LEFT JOIN People p ON d.Name = p.Department
+    ///   ORDER BY d.Name;
+    /// </summary>
+    public async Task<IEnumerable<object>> LeftJoinDepartmentsPeopleAsync()
+    {
+        var people = await _context.People.ToListAsync();
+        var departments = await _context.Departments.ToListAsync();
+
+        return departments
+            .GroupJoin(
+                people,                               // Second collection
+                dept => dept.Name,                    // Key from Departments (LEFT side)
+                person => person.Department,          // Key from People (RIGHT side)
+                (dept, matchedPeople) => new { dept, matchedPeople })  // Intermediate result
+            .SelectMany(
+                x => x.matchedPeople.DefaultIfEmpty(),  // Flatten; null if no match
+                (x, person) => new                      // Final projection
+                {
+                    Department  = x.dept.Name,
+                    x.dept.Floor,
+                    x.dept.ManagerName,
+                    x.dept.Budget,
+                    EmployeeName = person != null ? $"{person.FirstName} {person.LastName}" : "— No employees —",
+                    Salary       = person?.Salary
+                })
+            .OrderBy(x => x.Department)
+            .ToList<object>();
+    }
+
+    /// <summary>
+    /// GROUP JOIN — Each department gets a LIST of its people (one-to-many)
+    ///
+    /// EXPLANATION: GroupJoin is different from Join:
+    ///   - Join: flattens — one row per person
+    ///   - GroupJoin: nests — one row per department, with a list of people inside
+    ///
+    /// This is the most natural way to represent one-to-many relationships.
+    /// Think: "For each department, show me all its employees"
+    ///
+    /// MSSQL Equivalent:
+    ///   -- No direct single-query equivalent. Requires:
+    ///   SELECT d.Name, d.ManagerName, d.Budget,
+    ///          (SELECT COUNT(*) FROM People p WHERE p.Department = d.Name) AS EmployeeCount
+    ///   FROM Departments d;
+    ///
+    ///   -- Plus a separate query for the employee list per department:
+    ///   SELECT d.Name AS Department,
+    ///          STRING_AGG(p.FirstName + ' ' + p.LastName, ', ') AS Employees
+    ///   FROM Departments d
+    ///   LEFT JOIN People p ON d.Name = p.Department
+    ///   GROUP BY d.Name;
+    /// </summary>
+    public async Task<IEnumerable<object>> GroupJoinDepartmentsPeopleAsync()
+    {
+        var people = await _context.People.ToListAsync();
+        var departments = await _context.Departments.ToListAsync();
+
+        return departments
+            .GroupJoin(
+                people,
+                dept => dept.Name,
+                person => person.Department,
+                (dept, matchedPeople) => new
+                {
+                    Department    = dept.Name,
+                    dept.Floor,
+                    dept.ManagerName,
+                    dept.Budget,
+                    EmployeeCount = matchedPeople.Count(),
+                    Employees     = matchedPeople
+                        .OrderBy(p => p.LastName)
+                        .Select(p => new
+                        {
+                            Name   = $"{p.FirstName} {p.LastName}",
+                            p.Salary,
+                            p.IsActive
+                        })
+                        .ToList(),
+                    TotalSalary   = matchedPeople.Sum(p => p.Salary)
+                })
+            .OrderBy(x => x.Department)
+            .ToList<object>();
+    }
+
+    /// <summary>
+    /// CROSS JOIN — Every department × every city (all combinations)
+    ///
+    /// EXPLANATION: A Cross Join produces the Cartesian product — every
+    /// possible combination of rows from both collections.
+    /// 5 departments × 4 cities = 20 rows.
+    ///
+    /// In LINQ, SelectMany without a join condition creates a cross join.
+    /// Use cases: generating a schedule grid, a pivot table structure, etc.
+    ///
+    /// MSSQL Equivalent:
+    ///   SELECT d.Name AS Department, c.City
+    ///   FROM Departments d
+    ///   CROSS JOIN (SELECT DISTINCT City FROM People) c
+    ///   ORDER BY d.Name, c.City;
+    /// </summary>
+    public async Task<IEnumerable<object>> CrossJoinDepartmentsCitiesAsync()
+    {
+        var departments = await _context.Departments.ToListAsync();
+        var cities = (await _context.People.ToListAsync())
+            .Select(p => p.City).Distinct().ToList();
+
+        return departments
+            .SelectMany(
+                dept => cities,
+                (dept, city) => new
+                {
+                    Department = dept.Name,
+                    City = city
+                })
+            .OrderBy(x => x.Department)
+            .ThenBy(x => x.City)
+            .ToList<object>();
+    }
+
+    /// <summary>
+    /// JOIN + GroupBy + Aggregates — Department stats with budget info
+    ///
+    /// EXPLANATION: Combines Join with GroupBy and aggregates.
+    /// Real-world scenario: "For each department, show headcount,
+    /// average salary, AND the department's budget (from another table),
+    /// then calculate how much of the budget is used."
+    ///
+    /// This is a very common reporting pattern — joining reference data
+    /// with transactional data and computing metrics.
+    ///
+    /// MSSQL Equivalent:
+    ///   SELECT d.Name AS Department, d.Budget, d.ManagerName,
+    ///          COUNT(p.Id) AS HeadCount,
+    ///          ROUND(AVG(CAST(p.Salary AS FLOAT)), 2) AS AvgSalary,
+    ///          SUM(p.Salary) AS TotalSalary,
+    ///          ROUND(SUM(p.Salary) * 100.0 / d.Budget, 1) AS BudgetUsedPercent
+    ///   FROM Departments d
+    ///   LEFT JOIN People p ON d.Name = p.Department
+    ///   GROUP BY d.Name, d.Budget, d.ManagerName
+    ///   ORDER BY BudgetUsedPercent DESC;
+    /// </summary>
+    public async Task<IEnumerable<object>> MultiJoinDepartmentStatsAsync()
+    {
+        var people = await _context.People.ToListAsync();
+        var departments = await _context.Departments.ToListAsync();
+
+        return departments
+            .GroupJoin(
+                people,
+                dept => dept.Name,
+                person => person.Department,
+                (dept, matchedPeople) => new
+                {
+                    Department        = dept.Name,
+                    dept.ManagerName,
+                    dept.Budget,
+                    HeadCount         = matchedPeople.Count(),
+                    AverageSalary     = matchedPeople.Any()
+                        ? Math.Round(matchedPeople.Average(p => p.Salary), 2) : 0,
+                    TotalSalary       = matchedPeople.Sum(p => p.Salary),
+                    BudgetUsedPercent = dept.Budget > 0
+                        ? Math.Round(matchedPeople.Sum(p => p.Salary) / dept.Budget * 100, 1) : 0
+                })
+            .OrderByDescending(x => x.BudgetUsedPercent)
+            .ToList<object>();
+    }
+
+    /// <summary>
+    /// SELF JOIN — Find people who work in the SAME CITY
+    ///
+    /// EXPLANATION: A self-join joins a table with itself.
+    /// Here we find pairs of people who share the same city.
+    /// We use p1.Id &lt; p2.Id to avoid duplicate pairs (Alice-Bob, Bob-Alice)
+    /// and to avoid pairing someone with themselves.
+    ///
+    /// MSSQL Equivalent:
+    ///   SELECT
+    ///     p1.FirstName + ' ' + p1.LastName AS Person1,
+    ///     p2.FirstName + ' ' + p2.LastName AS Person2,
+    ///     p1.City,
+    ///     p1.Department AS Dept1,
+    ///     p2.Department AS Dept2
+    ///   FROM People p1
+    ///   INNER JOIN People p2 ON p1.City = p2.City AND p1.Id &lt; p2.Id
+    ///   ORDER BY p1.City, p1.LastName;
+    /// </summary>
+    public async Task<IEnumerable<object>> SelfJoinSameCityAsync()
+    {
+        var people = await _context.People.ToListAsync();
+
+        return people
+            .Join(
+                people,
+                p1 => p1.City,
+                p2 => p2.City,
+                (p1, p2) => new { p1, p2 })
+            .Where(x => x.p1.Id < x.p2.Id)           // Avoid duplicates & self-pairs
+            .Select(x => new
+            {
+                Person1    = $"{x.p1.FirstName} {x.p1.LastName}",
+                Person2    = $"{x.p2.FirstName} {x.p2.LastName}",
+                City       = x.p1.City,
+                Department1 = x.p1.Department,
+                Department2 = x.p2.Department,
+                SameDept   = x.p1.Department == x.p2.Department
+            })
+            .OrderBy(x => x.City)
+            .ThenBy(x => x.Person1)
+            .ToList<object>();
+    }
+
+    /// <summary>
+    /// LEFT JOIN with Default Values — Clean null handling
+    ///
+    /// EXPLANATION: Same as Left Join, but instead of showing nulls for
+    /// unmatched rows, we provide meaningful default values.
+    /// This is the production-ready version of a left join.
+    ///
+    /// Uses the null-coalescing operator (??) and null-conditional (?.)
+    /// to handle nulls gracefully.
+    ///
+    /// MSSQL Equivalent:
+    ///   SELECT
+    ///     d.Name AS Department,
+    ///     ISNULL(p.FirstName + ' ' + p.LastName, 'Vacant') AS EmployeeName,
+    ///     ISNULL(p.Salary, 0) AS Salary,
+    ///     ISNULL(p.IsActive, 0) AS IsActive
+    ///   FROM Departments d
+    ///   LEFT JOIN People p ON d.Name = p.Department
+    ///   ORDER BY d.Name;
+    /// </summary>
+    public async Task<IEnumerable<object>> LeftJoinWithDefaultAsync()
+    {
+        var people = await _context.People.ToListAsync();
+        var departments = await _context.Departments.ToListAsync();
+
+        return departments
+            .GroupJoin(
+                people,
+                dept => dept.Name,
+                person => person.Department,
+                (dept, matchedPeople) => new { dept, matchedPeople })
+            .SelectMany(
+                x => x.matchedPeople.DefaultIfEmpty(),
+                (x, person) => new
+                {
+                    Department   = x.dept.Name,
+                    x.dept.Floor,
+                    Manager      = x.dept.ManagerName,
+                    EmployeeName = person != null
+                        ? $"{person.FirstName} {person.LastName}"
+                        : "Vacant — No employees",
+                    Salary       = person?.Salary ?? 0,
+                    IsActive     = person?.IsActive ?? false,
+                    HasEmployee  = person != null
+                })
+            .OrderBy(x => x.Department)
+            .ThenByDescending(x => x.Salary)
+            .ToList<object>();
+    }
 }

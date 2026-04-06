@@ -11,20 +11,26 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// EF Core — InMemory database (no SQL Server needed!)
+// EF Core — SQL Server
+// EnableSensitiveDataLogging shows parameter values in logs
+// EnableDetailedErrors shows detailed error messages
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseInMemoryDatabase("PersonProfileDb"));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+           .EnableSensitiveDataLogging()
+           .EnableDetailedErrors()
+           .LogTo(Console.WriteLine, new[] { DbLoggerCategory.Database.Command.Name },
+                  Microsoft.Extensions.Logging.LogLevel.Information));
 
 // Repository Pattern — DI registration
 builder.Services.AddScoped<IPersonRepository, PersonRepository>();
 
 var app = builder.Build();
 
-// ── Seed the in-memory database on startup ────────────────
+// ── Apply migrations and seed on startup ──────────────────
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
 }
 
 // ── Middleware pipeline ───────────────────────────────────

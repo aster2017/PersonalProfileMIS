@@ -8,10 +8,24 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     public DbSet<Person> People => Set<Person>();
+    public DbSet<Department> Departments => Set<Department>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Seed data — rich enough for interesting LINQ queries
+        // Configure decimal precision for SQL Server
+        modelBuilder.Entity<Person>().Property(p => p.Salary).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<Department>().Property(d => d.Budget).HasColumnType("decimal(18,2)");
+
+        // Seed Department data — used for Join examples
+        modelBuilder.Entity<Department>().HasData(
+            new Department { Id = 1, Name = "Engineering", Floor = "3rd Floor", ManagerName = "Sarah Chen",     Budget = 500000 },
+            new Department { Id = 2, Name = "Marketing",   Floor = "2nd Floor", ManagerName = "Mike Thompson",  Budget = 300000 },
+            new Department { Id = 3, Name = "HR",          Floor = "1st Floor", ManagerName = "Lisa Park",      Budget = 200000 },
+            new Department { Id = 4, Name = "Finance",     Floor = "4th Floor", ManagerName = "James Rodriguez", Budget = 350000 },
+            new Department { Id = 5, Name = "Sales",       Floor = "2nd Floor", ManagerName = "Amy Watson",     Budget = 400000 }  // No people in Sales — useful for Left Join demo
+        );
+
+        // Seed Person data — rich enough for interesting LINQ queries
         modelBuilder.Entity<Person>().HasData(
             new Person { Id = 1,  FirstName = "Alice",   LastName = "Smith",    Email = "alice@example.com",   City = "New York",    Department = "Engineering", Salary = 95000,  Age = 30, IsActive = true,  DateJoined = new DateTime(2020, 3, 15) },
             new Person { Id = 2,  FirstName = "Bob",     LastName = "Johnson",  Email = "bob@example.com",     City = "Chicago",     Department = "Marketing",   Salary = 72000,  Age = 45, IsActive = true,  DateJoined = new DateTime(2018, 7, 1) },

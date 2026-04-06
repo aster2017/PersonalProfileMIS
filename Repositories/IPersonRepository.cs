@@ -84,4 +84,16 @@ public interface IPersonRepository
     Task<IEnumerable<object>> GetCitySalaryRankingAsync();               // Nested GroupBy + OrderBy
     Task<object> GetActiveVsInactiveStatsAsync();                        // Conditional aggregation
     Task<IEnumerable<object>> GetRecentHiresAsync(int years);            // Date filtering
+
+    // ──────────────────────────────────────────────
+    // Session 8: Joins
+    // Combining data from two tables/collections
+    // ──────────────────────────────────────────────
+    Task<IEnumerable<object>> InnerJoinPeopleDepartmentsAsync();         // INNER JOIN
+    Task<IEnumerable<object>> LeftJoinDepartmentsPeopleAsync();          // LEFT JOIN
+    Task<IEnumerable<object>> GroupJoinDepartmentsPeopleAsync();         // GROUP JOIN (one-to-many)
+    Task<IEnumerable<object>> CrossJoinDepartmentsCitiesAsync();         // CROSS JOIN
+    Task<IEnumerable<object>> MultiJoinDepartmentStatsAsync();           // JOIN + GroupBy + Aggregates
+    Task<IEnumerable<object>> SelfJoinSameCityAsync();                   // Self-Join (same table)
+    Task<IEnumerable<object>> LeftJoinWithDefaultAsync();                // LEFT JOIN with default values
 }
