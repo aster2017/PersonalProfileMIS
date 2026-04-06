@@ -363,14 +363,207 @@ people.Where(p => p.DateJoined >= cutoff)
 FROM People
 WHERE DateJoined >= DATEADD(YEAR, -5, GETDATE())
 ORDER BY DateJoined DESC;"
+            },
+
+            // ── SESSION 8: Joins ──
+            new {
+                Session = "Session 8: Joins",
+                Title = "INNER JOIN — Only Matching Rows from Both Tables",
+                Linq = @"// Method Syntax:
+people.Join(
+    departments,                      // 2nd collection
+    person => person.Department,      // LEFT key (People)
+    dept => dept.Name,                // RIGHT key (Departments)
+    (person, dept) => new {           // Result when keys match
+        person.FirstName, person.Salary,
+        Department = dept.Name, dept.Floor, dept.ManagerName
+    })
+
+// Query Syntax (same result):
+from person in people
+join dept in departments
+    on person.Department equals dept.Name
+select new { person.FirstName, dept.Floor }",
+                Mssql = @"SELECT p.FirstName, p.LastName, p.Salary,
+       d.Name AS Department, d.Floor, d.ManagerName, d.Budget
+FROM People p
+INNER JOIN Departments d ON p.Department = d.Name
+ORDER BY d.Name, p.LastName;"
+            },
+            new {
+                Session = "Session 8: Joins",
+                Title = "LEFT JOIN — All Departments, Even Those With No People",
+                Linq = @"// Method Syntax (3-step pattern):
+departments
+    .GroupJoin(people,
+        dept => dept.Name,              // LEFT key
+        person => person.Department,    // RIGHT key
+        (dept, matchedPeople) => new { dept, matchedPeople })
+    .SelectMany(
+        x => x.matchedPeople.DefaultIfEmpty(),  // null if no match
+        (x, person) => new {
+            Department = x.dept.Name, x.dept.Floor,
+            Employee = person != null ? person.FirstName : ""No employees"",
+            Salary = person?.Salary ?? 0
+        })
+
+// Query Syntax (much cleaner!):
+from dept in departments
+join person in people
+    on dept.Name equals person.Department into deptPeople
+from person in deptPeople.DefaultIfEmpty()
+select new {
+    dept.Name,
+    Employee = person != null ? person.FirstName : ""No employees""
+}",
+                Mssql = @"SELECT d.Name AS Department, d.Floor, d.ManagerName,
+       p.FirstName + ' ' + p.LastName AS EmployeeName, p.Salary
+FROM Departments d
+LEFT JOIN People p ON d.Name = p.Department
+ORDER BY d.Name;
+
+-- 'Sales' department appears with NULL employee values"
+            },
+            new {
+                Session = "Session 8: Joins",
+                Title = "GROUP JOIN — Each Department Gets a LIST of People (One-to-Many)",
+                Linq = @"// Method Syntax:
+departments.GroupJoin(
+    people,
+    dept => dept.Name,
+    person => person.Department,
+    (dept, matchedPeople) => new {     // matchedPeople = LIST (not single item)
+        Department = dept.Name,
+        EmployeeCount = matchedPeople.Count(),
+        Employees = matchedPeople.Select(p => p.FirstName).ToList(),
+        TotalSalary = matchedPeople.Sum(p => p.Salary)
+    })
+
+// Query Syntax:
+from dept in departments
+join person in people
+    on dept.Name equals person.Department into deptPeople   // 'into' = GroupJoin
+select new {
+    dept.Name,
+    Count = deptPeople.Count(),
+    Total = deptPeople.Sum(p => p.Salary)
+}",
+                Mssql = @"-- Summary per department:
+SELECT d.Name AS Department, d.ManagerName, d.Budget,
+       COUNT(p.Id) AS EmployeeCount,
+       ISNULL(SUM(p.Salary), 0) AS TotalSalary
+FROM Departments d
+LEFT JOIN People p ON d.Name = p.Department
+GROUP BY d.Name, d.ManagerName, d.Budget;
+
+-- Employee list per department:
+SELECT d.Name AS Department,
+       STRING_AGG(p.FirstName + ' ' + p.LastName, ', ') AS Employees
+FROM Departments d
+LEFT JOIN People p ON d.Name = p.Department
+GROUP BY d.Name;"
+            },
+            new {
+                Session = "Session 8: Joins",
+                Title = "CROSS JOIN — Every Possible Combination (Cartesian Product)",
+                Linq = @"// Method Syntax:
+departments.SelectMany(
+    dept => cities,
+    (dept, city) => new { Department = dept.Name, City = city })
+
+// Query Syntax:
+from dept in departments
+from city in cities
+select new { dept.Name, City = city }",
+                Mssql = @"SELECT d.Name AS Department, c.City
+FROM Departments d
+CROSS JOIN (SELECT DISTINCT City FROM People) c
+ORDER BY d.Name, c.City;"
+            },
+            new {
+                Session = "Session 8: Joins",
+                Title = "JOIN + GroupBy + Aggregates — Department Budget Report",
+                Linq = @"departments.GroupJoin(
+    people, dept => dept.Name, p => p.Department,
+    (dept, matchedPeople) => new {
+        Department = dept.Name, dept.Budget,
+        HeadCount = matchedPeople.Count(),
+        TotalSalary = matchedPeople.Sum(p => p.Salary),
+        BudgetUsedPercent = dept.Budget > 0
+            ? Math.Round(matchedPeople.Sum(p => p.Salary) / dept.Budget * 100, 1) : 0
+    })",
+                Mssql = @"SELECT d.Name AS Department, d.Budget,
+    COUNT(p.Id) AS HeadCount,
+    ISNULL(SUM(p.Salary), 0) AS TotalSalary,
+    ROUND(ISNULL(SUM(p.Salary), 0) * 100.0 / d.Budget, 1) AS BudgetUsedPercent
+FROM Departments d
+LEFT JOIN People p ON d.Name = p.Department
+GROUP BY d.Name, d.Budget
+ORDER BY BudgetUsedPercent DESC;"
+            },
+            new {
+                Session = "Session 8: Joins",
+                Title = "SELF JOIN — Find People in the Same City (Same Table × Itself)",
+                Linq = @"// Method Syntax:
+people.Join(
+    people,                            // Join with ITSELF
+    p1 => p1.City,                     // Key from 1st copy
+    p2 => p2.City,                     // Key from 2nd copy
+    (p1, p2) => new { p1, p2 })
+    .Where(x => x.p1.Id < x.p2.Id)    // Avoid duplicates & self-pairs
+    .Select(x => new {
+        Person1 = x.p1.FirstName, Person2 = x.p2.FirstName,
+        City = x.p1.City, SameDept = x.p1.Department == x.p2.Department
+    })
+
+// Query Syntax:
+from p1 in people
+join p2 in people on p1.City equals p2.City
+where p1.Id < p2.Id
+select new { p1.FirstName, Person2 = p2.FirstName, p1.City }",
+                Mssql = @"SELECT
+    p1.FirstName + ' ' + p1.LastName AS Person1,
+    p2.FirstName + ' ' + p2.LastName AS Person2,
+    p1.City,
+    p1.Department AS Dept1, p2.Department AS Dept2,
+    CASE WHEN p1.Department = p2.Department THEN 1 ELSE 0 END AS SameDept
+FROM People p1
+INNER JOIN People p2 ON p1.City = p2.City AND p1.Id < p2.Id
+ORDER BY p1.City, p1.LastName;"
+            },
+            new {
+                Session = "Session 8: Joins",
+                Title = "LEFT JOIN with Default Values — Production-Ready Null Handling",
+                Linq = @"departments
+    .GroupJoin(people, d => d.Name, p => p.Department,
+        (dept, matched) => new { dept, matched })
+    .SelectMany(
+        x => x.matched.DefaultIfEmpty(),
+        (x, person) => new {
+            Department = x.dept.Name,
+            Employee = person != null
+                ? $""{person.FirstName} {person.LastName}""
+                : ""Vacant — No employees"",
+            Salary = person?.Salary ?? 0,         // ?? = null-coalescing
+            IsActive = person?.IsActive ?? false   // ?. = null-conditional
+        })",
+                Mssql = @"SELECT
+    d.Name AS Department, d.Floor, d.ManagerName,
+    ISNULL(p.FirstName + ' ' + p.LastName, 'Vacant — No employees') AS EmployeeName,
+    ISNULL(p.Salary, 0) AS Salary,
+    ISNULL(p.IsActive, 0) AS IsActive,
+    CASE WHEN p.Id IS NOT NULL THEN 1 ELSE 0 END AS HasEmployee
+FROM Departments d
+LEFT JOIN People p ON d.Name = p.Department
+ORDER BY d.Name, p.Salary DESC;"
             }
         };
 
         return Ok(new
         {
-            Title = "LINQ to MSSQL Complete Reference — All Sessions",
+            Title = "LINQ to MSSQL Complete Reference — All Sessions (1-8)",
             TotalQueries = queries.Length,
-            Note = "Each LINQ endpoint also returns its SQL equivalent in the response. Try them at /swagger",
+            Note = "Each LINQ endpoint also returns its SQL equivalent in the response. Try them at /swagger. Joins include both Method Syntax and Query Syntax examples.",
             Queries = queries
         });
     }
